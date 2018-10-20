@@ -1,14 +1,20 @@
 import org.apache.spark.graphx.{Edge, Graph}
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.{SparkConf, SparkContext}
 
 object getKeySentences {
 
-  val conf = new SparkConf().setAppName("get_key_sen").setMaster("local");
-  val sc = new SparkContext(conf)
-  val spark = SparkSession.builder().master("local").appName("sds")
-    .config("spark.some.config.option", "some-value").getOrCreate()
+//  val conf = new SparkConf().setAppName("get_key_sen").setMaster("local")
+//  .set("spark.driver.memory", "4g").set("spark.executor.memory", "4g");
+//  val sc = new SparkContext(conf)
+  val spark = SparkSession.builder().master("local").appName("get_key_sen")
+//    .config("spark.some.config.option", "some-value")
+    .config("spark.executor.memory", "14g")
+    .getOrCreate()
   import spark.implicits._
+  val sc = spark.sparkContext
+
+
+
 
   def main(args: Array[String]): Unit = {
 
@@ -16,11 +22,15 @@ object getKeySentences {
     for( i <- 0 to 8) {
       //      val wordFile = s"file:///C:/Users/31476/Desktop/543/bytecup2018/bytecup.corpus.train.${i}.txt"
       val wordFile = s"file:////home/wsy/桌面/Bytecup2018/preprocess_data/processed_train.${i}.txt"
+      val outputPath = s"file:////home/wsy/桌面/Bytecup2018/preprocess_data/processed_key_sen_train.${i}.txt"
       var data = readContent(wordFile)
-//      data.printSchema()
-      data.show(1)
+
+//      val path = s"file:////home/wsy/桌面/Bytecup2018/preprocess_data/1.txt"
+//      data = readContent(path)
+
       val df = data.map(r => (textRank(r.get(0).asInstanceOf[Seq[Seq[String]]]),r.getLong(1),r.getString(2)))
       df.show(1)
+      df.write.json(outputPath)
       print(1)
     }
   }
@@ -35,7 +45,7 @@ object getKeySentences {
   }
 
   def textRank(sentences: Seq[Seq[String]]): Seq[Seq[String]] ={
-    val threshhold = 0
+    val threshhold = 1
     val top_k = 10
     val i=0
     var vertices: Array[(Long,Seq[String])]=Array()
@@ -55,6 +65,7 @@ object getKeySentences {
         }
       }
     }
+
     val vRDD= sc.parallelize(vertices)
     val eRDD= sc.parallelize(edges)
     val graph = Graph(vRDD,eRDD)
