@@ -1,31 +1,58 @@
 import org.apache.spark.sql.SparkSession
 
 object getKeySentences {
-
-//  val conf = new SparkConf().setAppName("get_key_sen").setMaster("local")
-//  .set("spark.driver.memory", "4g").set("spark.executor.memory", "4g");
-//  val sc = new SparkContext(conf)
-  val spark = SparkSession.builder().master("local").appName("get_key_sen")
-//    .config("spark.some.config.option", "some-value")
-    .config("spark.executor.memory", "14g")
+  val spark = SparkSession
+    .builder().master("local")
+    .appName("Spark SQL basic example")
+    .config("spark.some.config.option", "some-value")
     .getOrCreate()
   import spark.implicits._
-  val sc = spark.sparkContext
 
+  case class SentenceIDLists(sentence_ids: Array[Long], sentences: Array[Array[String]])
 
+  case class Relation(first: Long, second: Long, weight: Double)
 
+  case class Article(id: String, sentence_list: Array[Array[String]])
+
+  case class ArticleWithScores(id: String, sentence_list: Array[Array[String]], scores: Array[Double])
 
   def main(args: Array[String]): Unit = {
-
+    val top_k = 10
     val i = 0;
     for( i <- 0 to 8) {
       //      val wordFile = s"file:///C:/Users/31476/Desktop/543/bytecup2018/bytecup.corpus.train.${i}.txt"
       val wordFile = s"file:////media/wsy/DATA/Data/preprocess_data/processed_train.${i}.txt"
       val outputPath = s"file:////media/wsy/DATA/Data/preprocess_data/processed_key_sen_train.${i}.txt"
-      var data = readContent(wordFile)
-      val df = data.map(r => (textRank(r.get(0).asInstanceOf[Seq[Seq[String]]]),r.getLong(1),r.getString(2)))
+      var data = readContent(wordFile).select('id,'content.as('sentence_list)).as[Article]
+
+      val articleScoresDataset = data.map{ art =>
+        val vertices = art.sentence_list.zipWithIndex
+        val similarityMatrix = vertices.map(vertex => vertices
+          .map(otherVetex => calculate_score(vertex, otherVetex, 0.5))
+        ).map(normalizeArray)
+        val neighbours = similarityMatrix.map{arr =>
+          arr.zipWithIndex.filter(ele => ele._1 > 0).map(_._2)
+        }
+        val scores = textRank(similarityMatrix, neighbours, 0.001)
+        ArticleWithScores(art.id, art.sentence_list, scores = scores)
+      }
+
+//      val sql_context = new SQLContext(spark.sparkContext)
+//      articleScoresDataset.registerTempTable(s"t${i}")
+//      val top_k_scores = sql_context.sql(s"select min(scores) from (select top ${top_k} scores from t${i} order by scores)")
+//      sql_context.dropTempTable("t${i}")
+
+
+//      print(min)
+//      val sorted = articleScoresDataset.rdd.sortBy(_.scores,false).take(top_k)
+//      val min = sorted.minBy(_.scores).scores
+      data.show(1)
+      articleScoresDataset.show(1)
+
+      val df = articleScoresDataset.join(data,"id")
+      print(df.schema)
 //      df.write.json(outputPath)
-      df.show(1)
+//      df.show(1)
       print(1)
     }
   }
@@ -34,83 +61,40 @@ object getKeySentences {
   def readContent(path : String) ={
     val stringFrame = spark.read.text(path).as[String]
     val jsonFrame = spark.read.json(stringFrame)
-    //    val data = jsonFrame.select("id","title", "content")
-    //    data
     jsonFrame
   }
-
-  def textRank(sentences:Seq[Seq[String]]) : Seq[Seq[String]] ={
-    val top_k = 10
-    val threshhold = 0.1
-    val num_iteration = 100
-    val i = 0
-    var edges: Array[(Seq[String],Seq[String])] = Array()
-    var ranks: Array[(Seq[String],Double)] = Array()
-    for (i <- 0 until sentences.length){
-      val s1 = sentences(i)
-      ranks :+= (s1,1/sentences.length.toDouble)
-      val j=0
-      for (j <- 0 until sentences.length){
-        if (i!=j){
-          val s2 = sentences(j)
-          val sim = cal_sen_similarity(s1,s2)
-          if (sim>threshhold){
-            edges :+= (s1,s2)
-            edges :+= (s2,s1)
-          }
-        }
-      }
-    }
-    var rRDD = sc.parallelize(ranks)
-    var eRDD = sc.parallelize(edges)
-    for (i <-i to num_iteration){
-      val contribs = eRDD.join(rRDD).flatMap{
-        case (s1,(s2,rank)) => s2.map(dest => (dest,rank/s2.size))
-      }
-//      rRDD = contribs.reduceByKey(_+_).mapValues(0.15+0.85*_)
-    }
-    val sorted_scores = rRDD.sortBy(_._2, false)
-    val key_sentences = sorted_scores.take(top_k)
-//    val key_sentences : Seq[Seq[String]] = sorted_scores.take(10).map(_._1).take(top_k)
-    key_sentences.map(_._1)
+  def calculateSimilarity(first: Seq[String], second: Seq[String]): Double ={
+    first.intersect(second).length / (Math.log(first.length) + Math.log(second.length))
   }
 
-//  def textRank(sentences: Seq[Seq[String]]): Seq[Seq[String]] ={
-//    val threshhold = 1
-//    val top_k = 10
-//    val i=0
-//    var vertices: Array[(Long,Seq[String])]=Array()
-//    var edges: Array[Edge[Double]] = Array()
-//    for (i <- 0 until sentences.length){
-//      val s1 = sentences(i)
-//      vertices :+= (i.toLong,s1)
-//      val j=0
-//      for (j <- 0 until sentences.length){
-//        if (i!=j){
-//          val s2 = sentences(j)
-//          val sim = cal_sen_similarity(s1,s2)
-//          if (sim>threshhold){
-//            edges :+= Edge(i.toLong,j.toLong,sim)
-//            edges :+= Edge(j.toLong,i.toLong,sim)
-//          }
-//        }
-//      }
-//    }
-//
-//
-//    val vRDD= sc.parallelize(vertices)
-//    val eRDD= sc.parallelize(edges)
-//    val graph = Graph(vRDD,eRDD)
-//    val ranks = graph.pageRank(0.01).vertices
-//    val scores = vRDD.join(ranks)
-//    val sorted_scores = scores.sortBy(_._2._2, false)
-//    val key_sentences = sorted_scores.take(10).map(_._2._1).take(top_k)
-//    key_sentences
-//  }
+  def constructRelation(pair: Array[(Long, Array[String])]) = {
+    pair.flatMap{ sent1 =>
+      pair.map (sent2 => Relation(sent1._1, sent2._1,
+        if (sent1._1 == sent2._1) 0 else calculateSimilarity(sent1._2, sent2._2)))
+        .filter(relation => relation.weight > 0.2)
+    }
+  }
 
-  def cal_sen_similarity(s1 : Seq[String],s2 : Seq[String]): Double ={
-    val intersection = s1.intersect(s2)
-    val sim = intersection.length/(math.log(s1.length)*math.log(s2.length))
-    sim
+  def calculate_score(first: (Array[String], Int), second: (Array[String], Int), threshold: Double) = {
+    val initial_score = if (first._2 != second._2) calculateSimilarity(first._1, second._1) else 0.0
+    if (initial_score > threshold) initial_score else 0.0
+  }
+
+  def textRank(weightMatrix: Array[Array[Double]], neighbours : Array[Array[Int]], tolerance: Double) = {
+    var oldScores = Array.fill(neighbours.size)(1.0)
+    var maxDiff = 10.0
+    while (maxDiff > tolerance) {
+      val newScores = neighbours.zipWithIndex
+        .map(ele => 0.15 * oldScores(ele._2) + 0.85 * ele._1.map(
+          index => oldScores(index) * weightMatrix(index)(ele._2)).sum)
+      maxDiff = newScores.zip(oldScores).map(tup => (tup._1 - tup._2).abs).max
+      oldScores = newScores
+    }
+    oldScores
+  }
+
+  def normalizeArray(array: Array[Double]) = {
+    val sum = array.sum
+    array.map(ele => ele / sum)
   }
 }
