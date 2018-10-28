@@ -37,22 +37,13 @@ object getKeySentences {
         ArticleWithScores(art.id, art.sentence_list, scores = scores)
       }
 
-//      val sql_context = new SQLContext(spark.sparkContext)
-//      articleScoresDataset.registerTempTable(s"t${i}")
-//      val top_k_scores = sql_context.sql(s"select min(scores) from (select top ${top_k} scores from t${i} order by scores)")
-//      sql_context.dropTempTable("t${i}")
 
-
-//      print(min)
-//      val sorted = articleScoresDataset.rdd.sortBy(_.scores,false).take(top_k)
-//      val min = sorted.minBy(_.scores).scores
-      data.show(1)
-      articleScoresDataset.show(1)
-
-      val df = articleScoresDataset.join(data,"id")
-      print(df.schema)
-//      df.write.json(outputPath)
-//      df.show(1)
+      val sql_context = new SQLContext(spark.sparkContext)
+      articleScoresDataset.registerTempTable(s"t${i}")
+      val top_k_scores = sql_context.sql(s"Select scores From t${i} t11 Where (${top_k}-1) = (Select Count(Distinct(t22.scores)) From t${i} t22 Where t22.scores > t11.scores)")
+      sql_context.dropTempTable("t${i}")
+      ArticleWithScores.filter("scores>top_k_scores")/join(data,"id")      
+      df.write.json(outputPath)
       print(1)
     }
   }
