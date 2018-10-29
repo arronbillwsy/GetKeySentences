@@ -1,6 +1,6 @@
 import org.apache.spark.sql.SparkSession
 
-object getKeySentences {
+object test {
 
   //  val conf = new SparkConf().setAppName("get_key_sen").setMaster("local")
   //  .set("spark.driver.memory", "4g").set("spark.executor.memory", "4g");
