@@ -21,10 +21,10 @@ object getKeySentences {
     val top_k = 10
     val i = 0;
     for( i <- 0 to 8) {
-      //      val wordFile = s"file:///C:/Users/31476/Desktop/543/bytecup2018/bytecup.corpus.train.${i}.txt"
+//      val wordFile = s"file:///C:/Users/31476/Desktop/543/bytecup2018/bytecup.corpus.train.${i}.txt"
       val wordFile = s"file:////media/wsy/DATA/Data/preprocess_data/processed_train.${i}.txt"
 //      val outputPath = s"file:////media/wsy/DATA/Data/preprocess_data/processed_key_sen_train.${i}.txt"
-      val outputPath = s"file:////home/wsy/桌面/Bytecup2018/key_sen/processed_key_sen_train.${i}.txt"
+      val outputPath = s"file:////home/wsy/桌面/Bytecup2018/key_sen/processed_key_sen_train.${i}"
       var data = readContent(wordFile).select('id,'content.as('sentence_list)).as[Article]
 
       val articleScoresDataset = data.map{ art =>
@@ -49,17 +49,6 @@ object getKeySentences {
       val raw_data = readContent(wordFile).select("id","title")
       val df = top_k_scores.join(raw_data,"id")
       df.toJSON.coalesce(1).write.text(outputPath)
-      //      articleScoresDataset.registerTempTable(s"t${i}")
-      //      var max = sql_context.sql(s"select max(scores) from t${i}")
-      //      for (j<- 0 to top_k){
-      //        val update_max = sql_context.sql(s"select max(scores) from t${i} where t${i}.scores<t${max}")
-      //        max = update_max
-      //      }
-      //
-      //
-      //      val  = sql_context.sql(s"Select scores From t${i} t11 Where (${top_k}-1) = (Select Count(Distinct(t22.scores)) From t${i} t22 Where t22.scores > t11.scores)")
-      //      sql_context.dropTempTable("t${i}")
-      //      val df = ArticleWithScores.filter("scores>top_k_scores").join(data,"id")
     }
   }
 
